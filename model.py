@@ -63,7 +63,7 @@ class ScoreResult:
         rows = "\n".join(f"    {k}: {v:.4f}" for k, v in self.distribution.items())
         return (
             f"ScoreResult(\n"
-            f"  value        = {self.value:.4f}   # 0.0 ~ 1.0\n"
+            f"  value        = {self.value:.4f}\n"
             f"  distribution = {{\n{rows}\n  }}\n"
             f"  confidence   = {self.confidence:.4f}\n"
             f")"
@@ -183,9 +183,8 @@ class MiniJev:
     ) -> ScoreResult:
         text  = f"{state.strip()}\n\nQuestion: {question.strip()}"
         probs = self._call(text, criteria, hypothesis_template="The answer is {}.")
-        k     = len(criteria)
-        # normalize index to 0.0 ~ 1.0
-        value = sum(probs[label] * (i / (k - 1)) for i, label in enumerate(criteria))
+        # Score criteria are 1-based: the first criterion is 1 point.
+        value = sum(probs[label] * (i + 1) for i, label in enumerate(criteria))
 
         return ScoreResult(
             value=round(value, 4),

@@ -74,9 +74,9 @@ result = jev.choice(
 result = jev.score(
     state="I absolutely love this product!",
     question="Sentiment score (1=Very negative … 5=Very positive)",
-    scale=[1, 2, 3, 4, 5],
+    criteria=["Very negative", "Negative", "Neutral", "Positive", "Very positive"],
 )
-# ScoreResult(value=4.7, ...)
+# ScoreResult(value=4.7, ...)  # 1=Very negative, 5=Very positive
 ```
 
 ## Files
