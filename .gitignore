@@ -1,0 +1,12 @@
+# secrets
+.env.local
+
+# python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
