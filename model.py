@@ -30,18 +30,10 @@ HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}"
 
 @dataclass
 class NoulResult:
-    answer: bool
     probability: float   # P(yes)
-    confidence: float    # 0=uncertain, 1=certain
 
     def __repr__(self):
-        return (
-            f"NoulResult(\n"
-            f"  answer      = {self.answer}\n"
-            f"  probability = {self.probability:.4f}   # P(yes)\n"
-            f"  confidence  = {self.confidence:.4f}\n"
-            f")"
-        )
+        return f"NoulResult(probability={self.probability:.4f})"
 
 
 @dataclass
@@ -64,14 +56,14 @@ class ChoiceResult:
 @dataclass
 class ScoreResult:
     value: float
-    distribution: dict[int | float, float]
+    distribution: dict[str, float]
     confidence: float
 
     def __repr__(self):
         rows = "\n".join(f"    {k}: {v:.4f}" for k, v in self.distribution.items())
         return (
             f"ScoreResult(\n"
-            f"  value        = {self.value:.4f}   # E[score]\n"
+            f"  value        = {self.value:.4f}   # 0.0 ~ 1.0\n"
             f"  distribution = {{\n{rows}\n  }}\n"
             f"  confidence   = {self.confidence:.4f}\n"
             f")"
@@ -79,6 +71,12 @@ class ScoreResult:
 
 
 # ── Core model ────────────────────────────────────────────────────────────────
+
+def _confidence(probs: list[float]) -> float:
+    """C = (K * p_max - 1) / (K - 1)"""
+    k = len(probs)
+    return (k * max(probs) - 1) / (k - 1)
+
 
 def _apply_temperature(probs: list[float], temperature: float) -> list[float]:
     """Temperature scaling via logit space. τ>1 → softer, τ<1 → sharper."""
@@ -155,28 +153,24 @@ class MiniJev:
     # ── Noul ──────────────────────────────────────────────────────────────────
 
     def noul(self, state: str, question: str) -> NoulResult:
-        text   = f"{state.strip()}\n\n{question.strip()}"
-        probs  = self._call(text, ["yes", "no"], hypothesis_template="The answer to the question is {}.")
-        p_yes  = probs["yes"]
-        conf   = abs(p_yes - 0.5) * 2
+        text  = f"{state.strip()}\n\n{question.strip()}"
+        probs = self._call(text, ["yes", "no"], hypothesis_template="The answer to the question is {}.")
+        p_yes = probs["yes"]
 
-        return NoulResult(
-            answer=p_yes >= 0.5,
-            probability=round(p_yes, 4),
-            confidence=round(conf, 4),
-        )
+        return NoulResult(probability=round(p_yes, 4))
 
     # ── Choice ────────────────────────────────────────────────────────────────
 
-    def choice(self, state: str, question: str, choices: list[str]) -> ChoiceResult:
-        text  = f"{state.strip()}\n\nQuestion: {question.strip()}"
-        probs = self._call(text, choices, hypothesis_template="The answer is {}.")
-        best  = max(probs, key=probs.get)
+    def choice(self, state: str, question: str, choices: dict[str, str]) -> ChoiceResult:
+        text          = f"{state.strip()}\n\nQuestion: {question.strip()}"
+        probs_by_desc = self._call(text, list(choices.values()), hypothesis_template="The answer is {}.")
+        probs         = {k: probs_by_desc[v] for k, v in choices.items()}
+        best          = max(probs, key=probs.get)
 
         return ChoiceResult(
             answer=best,
             probabilities=probs,
-            confidence=round(probs[best], 4),
+            confidence=round(_confidence(list(probs.values())), 4),
         )
 
     # ── Score ─────────────────────────────────────────────────────────────────
@@ -185,20 +179,16 @@ class MiniJev:
         self,
         state: str,
         question: str,
-        scale: list[int | float],
+        criteria: list[str],
     ) -> ScoreResult:
-        lo, hi  = scale[0], scale[-1]
-        labels  = [str(v) for v in scale]
-        text    = f"{state.strip()}\n\nQuestion: {question.strip()}"
-        probs   = self._call(
-            text, labels,
-            hypothesis_template=f"The score is {{}} on a scale of {lo} to {hi}.",
-        )
-        dist     = {v: probs[str(v)] for v in scale}
-        expected = sum(v * dist[v] for v in scale)
+        text  = f"{state.strip()}\n\nQuestion: {question.strip()}"
+        probs = self._call(text, criteria, hypothesis_template="The answer is {}.")
+        k     = len(criteria)
+        # normalize index to 0.0 ~ 1.0
+        value = sum(probs[label] * (i / (k - 1)) for i, label in enumerate(criteria))
 
         return ScoreResult(
-            value=round(expected, 4),
-            distribution=dist,
-            confidence=round(max(dist.values()), 4),
+            value=round(value, 4),
+            distribution=probs,
+            confidence=round(_confidence(list(probs.values())), 4),
         )

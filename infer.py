@@ -18,13 +18,14 @@ print("=" * 60)
 
 state = "I would like a refund please."
 
+print(f"State: {state}\n")
+
 result_refund = jev.noul(state=state, question="Is this message a refund request?")
-print(f"State   : {state}")
 print(f"Q: Is this message a refund request?")
 print(result_refund)
 
 result_urgent = jev.noul(state=state, question="Is this request urgent?")
-print(f"\nQ: Is this request urgent?")
+print(f"Q: Is this request urgent?")
 print(result_urgent)
 
 
@@ -35,12 +36,12 @@ print("=" * 60)
 
 state = "I cannot log in to my account."
 question = "Which category does this inquiry belong to?"
-choices = [
-    "Authentication / login issue",
-    "Billing issue",
-    "Bug report",
-    "General inquiry",
-]
+choices = {
+    "auth":    "Authentication / login issue",
+    "billing": "Billing issue",
+    "bug":     "Bug report",
+    "general": "General inquiry",
+}
 
 result = jev.choice(state=state, question=question, choices=choices)
 print(f"State   : {state}")
@@ -54,10 +55,10 @@ print("SCORE — Ordinal Decision")
 print("=" * 60)
 
 state = "I absolutely love this product! I will definitely buy it again."
-question = "What is the sentiment score of this review? (1=Very negative, 2=Negative, 3=Neutral, 4=Positive, 5=Very positive)"
-scale = [1, 2, 3, 4, 5]
+question = "What is the sentiment score of this review?"
+criteria = ["Very negative", "Negative", "Neutral", "Positive", "Very positive"]
 
-result = jev.score(state=state, question=question, scale=scale)
+result = jev.score(state=state, question=question, criteria=criteria)
 print(f"State   : {state}")
 print(f"Question: {question}")
 print(result)
